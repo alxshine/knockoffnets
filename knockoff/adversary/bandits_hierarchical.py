@@ -28,7 +28,8 @@ import knockoff.config as meconfig
 # import modelextract.config as meconfig # knockoff/config.py?
 
 # from modelextract.substitutemodel.active.active import get_transfer_dataset
-from modelextract.utils import utils, data_utils, model_utils
+from knockoff import utils
+from knockoff.utils import model as model_utils, transforms
 
 __author__ = "Tribhuvanesh Orekondy"
 __maintainer__ = "Tribhuvanesh Orekondy"
@@ -385,17 +386,14 @@ def main():
     teacher_ds = params['teacher_ds']
     print('Using teacher dataset: ', teacher_ds)
     teacher_net = teacher_ds if params['teacher_net'] is None else params['teacher_net']
-    target_net = model_utils.get_target_net(teacher_net, target_model_dir, device)
-    teacher_test_data = data_utils.get_dataset(teacher_ds, 'test', print_stats=True)
+    target_net = model_utils.get_net(teacher_net)
+    teacher_test_data = data_utils.get_dataset(teacher_ds, 'test', print_stats=True) # TODO: fix with new code
     teacher_test_loader = torch.utils.data.DataLoader(teacher_test_data, batch_size=default_batch_size, shuffle=False,
                                                       num_workers=num_workers)
     criterion_teacher = nn.CrossEntropyLoss()
 
     # --------------- Prepare hyperparameters, loggers, etc.
-    input_shape = target_net.get_input_shape()[1:]
-    output_shape = target_net.get_output_shape()[1:]
     nclasses = target_net.get_output_shape()[-1]
-    max_entropy = np.log(nclasses)
 
     student_ds = params['student_ds']
     query_budget = params['n_examples']
@@ -412,9 +410,7 @@ def main():
     with open(params_out_path, 'w') as jf:
         json.dump(params, jf, indent=True, default=str)
 
-    results = []
     criterion_student_str = params['loss']
-    loss_weight = params['loss_weight']
 
     np.random.seed(meconfig.DEFAULT_SEED)
     torch.manual_seed(meconfig.DEFAULT_SEED)
@@ -431,11 +427,11 @@ def main():
     # This should be a large dataset with many no. of classes e.g., ImageNet, OpenImages
     # Hierarchy over these classes will be loaded later
     unlabeled_student_train_data = data_utils.get_dataset(student_ds, partitions=student_train_partition,
-                                                          transform=data_utils.DEFAULT_TEST_TRANSFORM,
+                                                          transform=transforms.DefaultTransforms,
                                                           **stud_ds_kwargs)
     unlabeled_student_test_data = data_utils.get_dataset(student_ds, partitions=student_test_partition,
                                                          nsamples=n_student_test,
-                                                         transform=data_utils.DEFAULT_TEST_TRANSFORM,
+                                                         transform=transforms.DefaultTransforms,
                                                          **stud_ds_kwargs)
     n_student_train = len(unlabeled_student_train_data)
     n_student_test = len(unlabeled_student_test_data)
@@ -474,14 +470,18 @@ def main():
                                                                  transform=utils.transform.DefaultTransforms)
 
     print('Getting predictions on Student-Test ({} examples)'.format(len(unlabeled_student_test_data)))
+    # get predictions for all samples in unlabeled student set
+    # TODO: replace with code from transfer.py
     labeled_student_test_data = get_transfer_dataset(target_net, unlabeled_student_test_data, device,
                                                      batch_size=default_batch_size, num_workers=num_workers,
                                                      transfer_probs=True)
+    # this is only used for evaluation, so it's fine
     labeled_student_test_loader = DataLoader(labeled_student_test_data, shuffle=False, batch_size=default_batch_size,
                                              num_workers=num_workers)
 
     # --------------- Set up student network
     model_arch_kwargs = {'pretrained': True}
+    # TODO: get code from adverary/train.py
     student_net = model_utils.get_net(student_model_arch, n_output_classes=nclasses,
                                       **model_arch_kwargs)
     student_net.to(device)
@@ -491,9 +491,11 @@ def main():
     if n_init_examples > 0:
         batch_size = params['init_batch_size']
         print('Performing initialization using {} examples'.format(n_init_examples))
+        # TODO: replace with current model loading
         unlabeled_student_init_data = data_utils.get_dataset(student_ds, partitions=student_train_partition,
-                                                             transform=data_utils.DEFAULT_TEST_TRANSFORM,
+                                                             transform=transforms.DefaultTransforms,
                                                              nsamples=n_init_examples, **stud_ds_kwargs)
+        # TODO: replace with transfer.py code
         labeled_student_init_data = get_transfer_dataset(target_net, unlabeled_student_init_data, device,
                                                          batch_size=batch_size, num_workers=num_workers,
                                                          transfer_probs=True)
@@ -503,13 +505,11 @@ def main():
                                    weight_decay=5e-4)
         for epoch in range(params['n_init_epochs']):
             student_train_loss, student_train_acc = \
-                model_utils.train_student(student_net, labeled_student_init_loader,
-                                          criterion_student_str, init_optimizer, epoch, device,
-                                          logger=None, verbose=True, target_is_probs=True)
+                model_utils.train_step(student_net, labeled_student_init_loader,
+                                          criterion_student_str, init_optimizer, epoch, device)
         # Eval on Teacher-Test set
-        teacher_test_loss, teacher_test_acc = model_utils.test(student_net, teacher_test_loader,
+        teacher_test_loss, teacher_test_acc = model_utils.test_step(student_net, teacher_test_loader,
                                                                criterion_teacher, device,
-                                                               logger=None,
                                                                epoch=params['n_init_epochs'])
 
         # Copy predictions to student data
