@@ -21,7 +21,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, dataset
 
 import knockoff.config as meconfig
 # import modelextract.config as meconfig # knockoff/config.py?
@@ -388,7 +388,7 @@ def main():
     print('Using teacher dataset: ', teacher_ds)
     valid_datasets = datasets.__dict__.keys()
     if teacher_ds not in valid_datasets:
-        raise ValueError('Dataset not found. Valid arguments = {}'.format(valid_datasets))
+        raise ValueError('Teacher dataset not found. Valid arguments = {}'.format(valid_datasets))
     test_transform = datasets.modelfamily_to_transforms[teacher_net]['test']
     teacher_test_data = datasets.__dict__[teacher_ds](train=False, transform=test_transform)
     teacher_test_loader = torch.utils.data.DataLoader(teacher_test_data, batch_size=default_batch_size, shuffle=False,
@@ -400,6 +400,9 @@ def main():
     nclasses = target_net.get_output_shape()[-1]
 
     student_ds = params['student_ds']
+    if student_ds not in valid_datasets:
+        raise ValueError('Student dataset not found. Valid arguments = {}'.format(valid_datasets))
+
     query_budget = params['n_examples']
     student_model_arch = params['smodel_arch']
     temp = 1
@@ -430,13 +433,9 @@ def main():
     stud_ds_kwargs = dict()
     # This should be a large dataset with many no. of classes e.g., ImageNet, OpenImages
     # Hierarchy over these classes will be loaded later
-    unlabeled_student_train_data = data_utils.get_dataset(student_ds, partitions=student_train_partition,
-                                                          transform=transforms.DefaultTransforms,
-                                                          **stud_ds_kwargs)
-    unlabeled_student_test_data = data_utils.get_dataset(student_ds, partitions=student_test_partition,
-                                                         nsamples=n_student_test,
-                                                         transform=transforms.DefaultTransforms,
-                                                         **stud_ds_kwargs)
+    unlabeled_student_train_data = datasets.__dict__[student_ds](train=True, transform=transforms.DefaultTransforms)
+    unlabeled_student_test_data = datasets.__dict__[student_ds](train=False, transform=transforms.DefaultTransforms)
+
     n_student_train = len(unlabeled_student_train_data)
     n_student_test = len(unlabeled_student_test_data)
     print('Size of student TRAIN dataset = ', n_student_train)
@@ -445,7 +444,7 @@ def main():
     tau_data = params['tau_data']
     if tau_data < 1.0:
         print('Sampling {} for dataset'.format(tau_data))
-        data_utils.sample_data_(unlabeled_student_train_data, tau_data)
+        data_utils.sample_data_(unlabeled_student_train_data, tau_data) # TODO: replace with standard library function (pytorch or numpy)
         n_student_train = len(unlabeled_student_train_data)
         print('NEW Size of student TRAIN dataset = ', n_student_train)
 
@@ -470,8 +469,9 @@ def main():
     # --------------- Initialize transfer dataset
     # For every input query made to the teacher, append this input + teacher's output probabilities to this dataset
     # Use these examples to train the student
+    # TODO: find a solution
     labeled_student_train_data = data_utils.ImageTransferDataset(dataset_name='Student Train Transfer',
-                                                                 transform=utils.transform.DefaultTransforms)
+                                                                 transform=transforms.DefaultTransforms)
 
     print('Getting predictions on Student-Test ({} examples)'.format(len(unlabeled_student_test_data)))
     # get predictions for all samples in unlabeled student set
@@ -495,10 +495,8 @@ def main():
     if n_init_examples > 0:
         batch_size = params['init_batch_size']
         print('Performing initialization using {} examples'.format(n_init_examples))
-        # TODO: replace with current model loading
-        unlabeled_student_init_data = data_utils.get_dataset(student_ds, partitions=student_train_partition,
-                                                             transform=transforms.DefaultTransforms,
-                                                             nsamples=n_init_examples, **stud_ds_kwargs)
+
+        unlabeled_student_init_data = dataset.__dict__[student_ds](train=True, transform=transforms.DefaultTransforms)
         # TODO: replace with transfer.py code
         labeled_student_init_data = get_transfer_dataset(target_net, unlabeled_student_init_data, device,
                                                          batch_size=batch_size, num_workers=num_workers,
