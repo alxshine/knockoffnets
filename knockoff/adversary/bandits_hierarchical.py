@@ -24,13 +24,11 @@ import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader, Subset
 import torchvision
 
-import modelextract.config as meconfig
-from modelextract.substitutemodel.active.active import random_selection, get_transfer_dataset
-from modelextract.substitutemodel.rl.bandits import Bandit, GradientBandit, EpsilonGreedyBandit, UCBBandit
-from modelextract.targetmodel import caltech256, cubs200, indoor
+import knockoff.config as meconfig
+# import modelextract.config as meconfig # knockoff/config.py?
+
+# from modelextract.substitutemodel.active.active import get_transfer_dataset
 from modelextract.utils import utils, data_utils, model_utils
-import modelextract.data as datasets
-from modelextract.utils.data_utils import ImageTransferDataset
 
 __author__ = "Tribhuvanesh Orekondy"
 __maintainer__ = "Tribhuvanesh Orekondy"
@@ -473,7 +471,7 @@ def main():
     # For every input query made to the teacher, append this input + teacher's output probabilities to this dataset
     # Use these examples to train the student
     labeled_student_train_data = data_utils.ImageTransferDataset(dataset_name='Student Train Transfer',
-                                                                 transform=data_utils.DEFAULT_TEST_TRANSFORM)
+                                                                 transform=utils.transform.DefaultTransforms)
 
     print('Getting predictions on Student-Test ({} examples)'.format(len(unlabeled_student_test_data)))
     labeled_student_test_data = get_transfer_dataset(target_net, unlabeled_student_test_data, device,
