@@ -21,14 +21,13 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from torch.utils.data import Dataset, DataLoader, Subset
-import torchvision
+from torch.utils.data import DataLoader
 
 import knockoff.config as meconfig
 # import modelextract.config as meconfig # knockoff/config.py?
 
 # from modelextract.substitutemodel.active.active import get_transfer_dataset
-from knockoff import utils
+from knockoff import datasets
 from knockoff.utils import model as model_utils, transforms
 
 __author__ = "Tribhuvanesh Orekondy"
@@ -48,7 +47,7 @@ class BanditNode:
         :param dataset: a pytorch Dataset object
         :param hierarchy: A list of dict elements. Each dict element = {'LabelName': 'xxxx', ('Subcategory': element)}
         """
-        self.nodeid = utils.id_generator()
+        self.nodeid = utils.id_generator() # TODO: replace with some system library
         self.parent = parent
         self.modename = modename
         self.is_valid = True
@@ -214,7 +213,7 @@ class BanditLeaf:
     """
 
     def __init__(self, parent, modename, dataset, depth=0):
-        self.nodeid = utils.id_generator()
+        self.nodeid = utils.id_generator() # TODO: replace with some standard library
         self.parent = parent
         self.modename = modename
         self.dataset = dataset
@@ -369,7 +368,7 @@ def main():
 
     out_dir = params['out_dir']
     print('Files and data will be written to: ', out_dir)
-    utils.create_dir(out_dir)
+    os.makedirs(out_dir, exist_ok=True)
 
     os.environ["CUDA_VISIBLE_DEVICES"] = str(params['device'])
     device = torch.device('cuda:0')
@@ -384,12 +383,17 @@ def main():
 
     # --------------- Load Test Data
     teacher_ds = params['teacher_ds']
-    print('Using teacher dataset: ', teacher_ds)
     teacher_net = teacher_ds if params['teacher_net'] is None else params['teacher_net']
-    target_net = model_utils.get_net(teacher_net)
-    teacher_test_data = data_utils.get_dataset(teacher_ds, 'test', print_stats=True) # TODO: fix with new code
+
+    print('Using teacher dataset: ', teacher_ds)
+    valid_datasets = datasets.__dict__.keys()
+    if teacher_ds not in valid_datasets:
+        raise ValueError('Dataset not found. Valid arguments = {}'.format(valid_datasets))
+    test_transform = datasets.modelfamily_to_transforms[teacher_net]['test']
+    teacher_test_data = datasets.__dict__[teacher_ds](train=False, transform=test_transform)
     teacher_test_loader = torch.utils.data.DataLoader(teacher_test_data, batch_size=default_batch_size, shuffle=False,
                                                       num_workers=num_workers)
+    target_net = model_utils.get_net(teacher_net)
     criterion_teacher = nn.CrossEntropyLoss()
 
     # --------------- Prepare hyperparameters, loggers, etc.
