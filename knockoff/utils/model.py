@@ -33,7 +33,7 @@ def get_net(model_name, n_output_classes=1000, **kwargs):
     print('=> loading model {} with arguments: {}'.format(model_name, kwargs))
     valid_models = [x for x in torch_models.__dict__.keys() if not x.startswith('__')]
     if model_name not in valid_models:
-        raise ValueError('Model not found. Valid arguments = {}...'.format(valid_models))
+        raise ValueError(f'Model {model_name} not found. Valid arguments = {valid_models}...')
     model = torch_models.__dict__[model_name](**kwargs)
     # Edit last FC layer to include n_output_classes
     if n_output_classes != 1000:

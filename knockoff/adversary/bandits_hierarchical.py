@@ -389,7 +389,7 @@ def main():
     valid_datasets = datasets.__dict__.keys()
     if teacher_ds not in valid_datasets:
         raise ValueError('Teacher dataset not found. Valid arguments = {}'.format(valid_datasets))
-    test_transform = datasets.modelfamily_to_transforms[teacher_net]['test']
+    test_transform = transforms.DefaultTransforms
     teacher_test_data = datasets.__dict__[teacher_ds](train=False, transform=test_transform)
     teacher_test_loader = torch.utils.data.DataLoader(teacher_test_data, batch_size=default_batch_size, shuffle=False,
                                                       num_workers=num_workers)
@@ -470,6 +470,7 @@ def main():
     # For every input query made to the teacher, append this input + teacher's output probabilities to this dataset
     # Use these examples to train the student
     # TODO: find a solution
+    breakpoint()
     labeled_student_train_data = data_utils.ImageTransferDataset(dataset_name='Student Train Transfer',
                                                                  transform=transforms.DefaultTransforms)
 

@@ -22,3 +22,8 @@ IMAGENET_MEAN = [0.485, 0.456, 0.406]
 IMAGENET_STD = [0.229, 0.224, 0.225]
 
 DEFAULT_BATCH_SIZE = 64
+
+
+# ---- adaptive adversary stuff (pure guesswork at the moment)
+
+N_INIT_EPOCHS=3
