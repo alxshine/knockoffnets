@@ -397,7 +397,8 @@ def main():
     criterion_teacher = nn.CrossEntropyLoss()
 
     # --------------- Prepare hyperparameters, loggers, etc.
-    nclasses = target_net.get_output_shape()[-1]
+    # nclasses = target_net.get_output_shape()[-1]
+    nclasses = 1000
 
     student_ds = params['student_ds']
     if student_ds not in valid_datasets:
@@ -430,7 +431,6 @@ def main():
                                                                     student_ds))
     n_student_train = params['n_examples'] + params['n_init_examples']
     n_student_test = params['n_student_test']
-    stud_ds_kwargs = dict()
     # This should be a large dataset with many no. of classes e.g., ImageNet, OpenImages
     # Hierarchy over these classes will be loaded later
     unlabeled_student_train_data = datasets.__dict__[student_ds](train=True, transform=transforms.DefaultTransforms)
